@@ -1,0 +1,76 @@
+(*Performed a trajectory stored in a PosTable*)
+FUNCTION_BLOCK McePosTable
+
+VAR CONSTANT
+    QA_MAX : INT := INT#2; (*max Queueing Amount; max number of motions which can be queued*)
+    RESERVED_ACTIONID_UBOUND : SINT := SINT#19; (*actionID lower or equal to this value are reserved for default ActionID*)
+    PT_MODE_0 : SINT; (*PosTable in continuous mode*)
+    PT_MODE_2 : SINT := SINT#2; (*PosTable in step-by-step mode*)
+    ACTIONID_NO_ACTION : SINT; (*no action*)
+    ACTIONID_WAIT_ONE_SCAN : SINT := SINT#1; (*wait one PLC scan*)
+    ACTIONID_WAIT_STEP : SINT := SINT#2; (*wait for rising edge*)
+    CONDITIONS_UBOUND : SINT := SINT#15;
+END_VAR
+
+VAR_IN_OUT
+    io_In : McePosTableIO; (*McePosTable IO variables (Control flags, status, indices)*)
+    MLX : MLxData; (*MotoLogix shared memory variable (Robot Interface)*)
+    posTable_In : McePosTableData; (*Trajectory to be processed (The Path)*)
+    userFrames : MceUserFrames; (*User frame data definitions*)
+    tools : MceToolData; (*Tool data definitions*)
+END_VAR
+
+VAR
+    posTable : McePosTableData; (*Trajectory to be processed (The Path)*)
+    io : McePosTableIO; (*McePosTable IO variables (Control flags, status, indices)*)
+    aMoveCmd : MceCmdStatusQA_Array; (*Status of the active motions*)
+    aUseMoveType : SIntQA_Array; (*1 = Linear, 0 = PTP Axis*)
+    nInstanceNumber : IntQA_Array; (*Maps state machine to QA index*)
+    aEnable : BoolQA_Array; (*Enable flags for the motions*)
+    aChangeTool : BoolQA_Array; (*Triggers a tool change*)
+    aChangeUserFrame : BoolQA_Array; (*Triggers a frame change*)
+    aOsrEnable : BoolQA_Array; (*One-shot rising edge for enables*)
+    aOneShots : ARRAY[0..15] OF BOOL; (*General purpose edge detectors*)
+    fbRobotMoveAxisAbsolute_0 : MLxRobotMoveAxisAbsolute;
+    fbRobotMoveLinearAbsolute_0 : MLxRobotMoveLinearAbsolute;
+    fbRobotSelectTool_0 : MLxRobotSelectTool;
+    fbRobotSetUserFrame_0 : MLxRobotSetUserFrame;
+    fbRobotMoveAxisAbsolute_1 : MLxRobotMoveAxisAbsolute;
+    fbRobotMoveLinearAbsolute_1 : MLxRobotMoveLinearAbsolute;
+    fbRobotSelectTool_1 : MLxRobotSelectTool;
+    fbRobotSetUserFrame_1 : MLxRobotSetUserFrame;
+    fbRobotMoveAxisAbsolute_2 : MLxRobotMoveAxisAbsolute;
+    fbRobotMoveLinearAbsolute_2 : MLxRobotMoveLinearAbsolute;
+    fbRobotSelectTool_2 : MLxRobotSelectTool;
+    fbRobotSetUserFrame_2 : MLxRobotSetUserFrame;
+    stStateMonitoringData : MceStateMonitoringData;
+    stConditionResult : McePosTableConditions;
+    nQA : INT; (*Allowed Queueing Amount*)
+    nUserFrameNr : DINT;
+    nToolNr : DINT;
+    nPosTableSize : INT; (*Total rows in posTable*)
+    nLastEntryIndex : DINT; (*Index of the last active move in the table*)
+    bLastEntry : BOOL; (*Reached the last entry*)
+    bFirstMove : BOOL; (*Flag for the first move after a stop*)
+    bDefaultActionDone : BOOL; (*Flag indicating the standstill action is complete*)
+    bOsrRun : BOOL; (*One-shot run signal*)
+    bOsfRun : BOOL; (*One-shot stop (falling edge of run)*)
+    bOsrStep : BOOL; (*One-shot step signal*)
+    bOsrSystemReady : BOOL;
+    bWaiting : BOOL; (*System is waiting for a step command*)
+    bStopEntry : BOOL; (*Reached a point that requires a full stop*)
+    bWaitBeforeNextEntry : BOOL;
+    bOsrRecalcQA : BOOL;
+    bError : BOOL; (*General error flag*)
+    bLastEntryInProcess : BOOL; (*The final table entry is currently executing*)
+    bOsfLastMoveInProcess : BOOL;
+    bAllowQueuing : BOOL; (*Flag to allow look-ahead blending*)
+    bStopAfterLastEntry : BOOL; (*Flag to halt at the end of the cycle*)
+    i : DINT; (*Loop counter*)
+    bCustomActionDone : BOOL;
+    bUserFrameDone : BOOL;
+    bToolDone : BOOL;
+    bUpdateQA : BOOL;
+    nNextValidLoadIndex : INT;
+    Out : UINT;
+END_VAR

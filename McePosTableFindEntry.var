@@ -1,0 +1,14 @@
+(*Index of found PosTable entry (-1=no valid result found)*)
+METHOD McePosTableFindEntry : INT
+
+VAR_INPUT
+    index : INT; (*index of actual PosTable entry*)
+    offset : INT; (*0=first result, 1=second result, 2=third result*)
+    posTableSize : INT; (*number of entries*)
+    rollOver : BOOL; (*continue from start after reaching end of table*)
+END_VAR
+
+VAR
+    nEntriesFound : INT;
+    i1 : INT;
+END_VAR

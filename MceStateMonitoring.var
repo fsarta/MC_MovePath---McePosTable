@@ -1,0 +1,13 @@
+(*Monitoring logic for a state machine, returns elapsed time [ms]*)
+METHOD MceStateMonitoring : DINT
+
+VAR_INPUT
+    nState : DINT; (*state of a state machine to monitor*)
+    bFreezeTimer : BOOL; (*stop the timer*)
+    stateData : MceStateMonitoringData; (*data for state machine monitoring*)
+END_VAR
+
+VAR
+    nTdiff : DINT; (*time since last call [µs]*)
+    tNow : LTIME; (*plc clock*)
+END_VAR

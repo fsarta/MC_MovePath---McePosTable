@@ -1,0 +1,20 @@
+(*remaining (valid) PosTable entries*)
+METHOD McePosTableRemainingEntries : INT
+
+VAR_INPUT
+    index : INT; (*index of actual PosTable entry*)
+    loadIndex : INT; (*index for loading next motion(s)*)
+    posTableSize : INT; (*number of entries*)
+    rollOver : BOOL; (*continue from start after reaching end of table*)
+    conditions : ARRAY_0_CONDITIONS_UBOUND_OF_BOOL; (*bits used as start conditions for a PosTable entry*)
+END_VAR
+
+VAR
+    i1 : INT;
+    nCount : INT;
+    stConditionResult1 : McePosTableConditions; (*state if the next motion condition are satisfied*)
+    nNextIndex : INT; (*next valid entry*)
+    nNextLoadIndex : INT;
+    bWaitForConditions : BOOL;
+    Out1 : UINT;
+END_VAR

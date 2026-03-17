@@ -1,0 +1,14 @@
+(*Check start conditions of a PosTable entry*)
+METHOD McePosTableCheckConditions : MCEPOSTABLECONDITIONS
+
+VAR_INPUT
+    index : INT; (*PosTable entry for which the start conditions should be checked*)
+    posTableSize : INT; (*number of entries*)
+    conditions : ARRAY_0_CONDITIONS_UBOUND_OF_BOOL; (*bits used as start conditions for a PosTable entry*)
+END_VAR
+
+VAR
+    i1 : DINT; (*index for FOR loops*)
+    stConditionResult1 : McePosTableConditions; (*state if the next motion condition are satisfied*)
+    OutM : UINT;
+END_VAR
