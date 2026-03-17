@@ -1,4 +1,4 @@
-(*Performed a trajectory stored in a PosTable*)
+(*Perform a trajectory stored in a PosTable - PLCopen standard version*)
 FUNCTION_BLOCK McePosTable
 
 VAR CONSTANT
@@ -14,40 +14,28 @@ END_VAR
 
 VAR_IN_OUT
     io_In : McePosTableIO; (*McePosTable IO variables (Control flags, status, indices)*)
-    MLX : MLxData; (*MotoLogix shared memory variable (Robot Interface)*)
+    AxesGroup : AXES_GROUP_REF; (*PLCopen axes group reference*)
     posTable_In : McePosTableData; (*Trajectory to be processed (The Path)*)
-    userFrames : MceUserFrames; (*User frame data definitions*)
-    tools : MceToolData; (*Tool data definitions*)
 END_VAR
 
 VAR
-    posTable : McePosTableData; (*Trajectory to be processed (The Path)*)
-    io : McePosTableIO; (*McePosTable IO variables (Control flags, status, indices)*)
+    posTable : McePosTableData; (*local copy of trajectory*)
+    io : McePosTableIO; (*local copy of IO*)
     aMoveCmd : MceCmdStatusQA_Array; (*Status of the active motions*)
-    aUseMoveType : SIntQA_Array; (*1 = Linear, 0 = PTP Axis*)
+    aUseMoveType : SIntQA_Array; (*1 = Linear, 0 = PTP*)
     nInstanceNumber : IntQA_Array; (*Maps state machine to QA index*)
     aEnable : BoolQA_Array; (*Enable flags for the motions*)
-    aChangeTool : BoolQA_Array; (*Triggers a tool change*)
-    aChangeUserFrame : BoolQA_Array; (*Triggers a frame change*)
     aOsrEnable : BoolQA_Array; (*One-shot rising edge for enables*)
     aOneShots : ARRAY[0..15] OF BOOL; (*General purpose edge detectors*)
-    fbRobotMoveAxisAbsolute_0 : MLxRobotMoveAxisAbsolute;
-    fbRobotMoveLinearAbsolute_0 : MLxRobotMoveLinearAbsolute;
-    fbRobotSelectTool_0 : MLxRobotSelectTool;
-    fbRobotSetUserFrame_0 : MLxRobotSetUserFrame;
-    fbRobotMoveAxisAbsolute_1 : MLxRobotMoveAxisAbsolute;
-    fbRobotMoveLinearAbsolute_1 : MLxRobotMoveLinearAbsolute;
-    fbRobotSelectTool_1 : MLxRobotSelectTool;
-    fbRobotSetUserFrame_1 : MLxRobotSetUserFrame;
-    fbRobotMoveAxisAbsolute_2 : MLxRobotMoveAxisAbsolute;
-    fbRobotMoveLinearAbsolute_2 : MLxRobotMoveLinearAbsolute;
-    fbRobotSelectTool_2 : MLxRobotSelectTool;
-    fbRobotSetUserFrame_2 : MLxRobotSetUserFrame;
+    fbMoveAbsolute_0 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 0*)
+    fbMoveLinear_0 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 0*)
+    fbMoveAbsolute_1 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 1*)
+    fbMoveLinear_1 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 1*)
+    fbMoveAbsolute_2 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 2*)
+    fbMoveLinear_2 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 2*)
     stStateMonitoringData : MceStateMonitoringData;
     stConditionResult : McePosTableConditions;
     nQA : INT; (*Allowed Queueing Amount*)
-    nUserFrameNr : DINT;
-    nToolNr : DINT;
     nPosTableSize : INT; (*Total rows in posTable*)
     nLastEntryIndex : DINT; (*Index of the last active move in the table*)
     bLastEntry : BOOL; (*Reached the last entry*)
@@ -68,8 +56,6 @@ VAR
     bStopAfterLastEntry : BOOL; (*Flag to halt at the end of the cycle*)
     i : DINT; (*Loop counter*)
     bCustomActionDone : BOOL;
-    bUserFrameDone : BOOL;
-    bToolDone : BOOL;
     bUpdateQA : BOOL;
     nNextValidLoadIndex : INT;
     Out : UINT;

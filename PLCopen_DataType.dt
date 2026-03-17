@@ -1,0 +1,97 @@
+(*
+ * =============================================================================
+ * PLCopen Standard Datatypes for McePosTable (MC_MovePath equivalent)
+ * =============================================================================
+ * These types follow the PLCopen Part 1 and Part 4 standard interfaces.
+ * They replace all MotoLogix (MLx*) specific datatypes.
+ * =============================================================================
+ *)
+
+(*Reference to a coordinated axes group (PLCopen Part 4)*)
+TYPE AXES_GROUP_REF :
+
+(*
+ * -----------------------------------------------------------------------------
+ * Name               : AXES_GROUP_REF
+ * Date               : 2026-03-17
+ * Standard           : PLCopen Part 4 - Coordinated Motion
+ * 
+ * -----------------------------------------------------------------------------
+ * Reference to a group of coordinated axes.
+ * In a real system this type is provided by the vendor's motion library.
+ * -----------------------------------------------------------------------------
+ *)
+
+STRUCT
+  nGroupID : UDINT;   (* ID of the axes group *)
+  bValid   : BOOL;    (* TRUE = reference is valid and usable *)
+END_STRUCT
+END_TYPE
+
+(*PLCopen MC_MoveAbsolute - Point-to-Point motion (Part 1)*)
+TYPE MC_MoveAbsolute_Ref :
+
+(*
+ * -----------------------------------------------------------------------------
+ * Name               : MC_MoveAbsolute_Ref
+ * Date               : 2026-03-17
+ * Standard           : PLCopen Part 1 - Single Axis / Part 4 - Coordinated
+ * 
+ * -----------------------------------------------------------------------------
+ * Data structure representing a PLCopen MC_MoveAbsolute function block
+ * for PtP (joint) motion. Interface follows the PLCopen standard.
+ * In a real system this would be a FUNCTION_BLOCK provided by the vendor.
+ * -----------------------------------------------------------------------------
+ *)
+
+STRUCT
+  (* --- Inputs --- *)
+  Execute        : BOOL;                  (* rising edge starts the motion *)
+  Position       : ARRAY[0..5] OF LREAL;  (* target position [axis units] *)
+  Velocity       : LREAL;                 (* target velocity *)
+  Acceleration   : LREAL;                 (* acceleration rate *)
+  Deceleration   : LREAL;                 (* deceleration rate *)
+  BufferMode     : SINT;                  (* 0=Aborting, 1=Buffered, 2=BlendingLow, 3=BlendingHigh *)
+  (* --- Outputs --- *)
+  Done           : BOOL;                  (* motion completed *)
+  Busy           : BOOL;                  (* FB is processing *)
+  Active         : BOOL;                  (* motion is the active motion *)
+  CommandAborted : BOOL;                  (* motion was aborted *)
+  Error          : BOOL;                  (* error occurred *)
+  ErrorID        : UDINT;                 (* error identification *)
+END_STRUCT
+END_TYPE
+
+(*PLCopen MC_MoveLinearAbsolute - Linear interpolation motion (Part 4)*)
+TYPE MC_MoveLinearAbsolute_Ref :
+
+(*
+ * -----------------------------------------------------------------------------
+ * Name               : MC_MoveLinearAbsolute_Ref
+ * Date               : 2026-03-17
+ * Standard           : PLCopen Part 4 - Coordinated Motion
+ * 
+ * -----------------------------------------------------------------------------
+ * Data structure representing a PLCopen MC_MoveLinearAbsolute function block
+ * for linear interpolated motion. Interface follows the PLCopen standard.
+ * In a real system this would be a FUNCTION_BLOCK provided by the vendor.
+ * -----------------------------------------------------------------------------
+ *)
+
+STRUCT
+  (* --- Inputs --- *)
+  Execute        : BOOL;                  (* rising edge starts the motion *)
+  Position       : ARRAY[0..5] OF LREAL;  (* target position [X,Y,Z,Rx,Ry,Rz] *)
+  Velocity       : LREAL;                 (* target velocity *)
+  Acceleration   : LREAL;                 (* acceleration rate *)
+  Deceleration   : LREAL;                 (* deceleration rate *)
+  BufferMode     : SINT;                  (* 0=Aborting, 1=Buffered, 2=BlendingLow, 3=BlendingHigh *)
+  (* --- Outputs --- *)
+  Done           : BOOL;                  (* motion completed *)
+  Busy           : BOOL;                  (* FB is processing *)
+  Active         : BOOL;                  (* motion is the active motion *)
+  CommandAborted : BOOL;                  (* motion was aborted *)
+  Error          : BOOL;                  (* error occurred *)
+  ErrorID        : UDINT;                 (* error identification *)
+END_STRUCT
+END_TYPE

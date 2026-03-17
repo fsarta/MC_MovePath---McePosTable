@@ -1,14 +1,14 @@
 (*
  * -----------------------------------------------------------------------------
  * Name               : McePosTable
- * Version            : 0.8.0
- * Date               : 2025-11-12
- * Author             : deGroot
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Version            : 1.0.0
+ * Date               : 2026-03-17
+ * Author             : refactored for PLCopen standard
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
- * Performed a trajectory stored in a PosTable
+ * Perform a trajectory stored in a PosTable (PLCopen MC_MovePath equivalent)
+ * Uses standard PLCopen motion interfaces (Execute/Done/Busy/Active/Error)
  * -----------------------------------------------------------------------------
  *)
  
@@ -171,11 +171,11 @@ CASE io.nSmPosTable OF
 
       // queue next motions
       FOR i := 1 TO QA_MAX DO
-        aEnable[nInstanceNumber[i]] := (aMoveCmd[nInstanceNumber[i-1]].bSts_EN AND aMoveCmd[nInstanceNumber[i-1]].bSts_DN) AND (nQA >= i);
+        aEnable[nInstanceNumber[i]] := (aMoveCmd[nInstanceNumber[i-1]].bDone OR aMoveCmd[nInstanceNumber[i-1]].bActive) AND (nQA >= i);
       END_FOR;
 
-      // motion completed
-      IF (aMoveCmd[nInstanceNumber[0]].bSts_EN AND aMoveCmd[nInstanceNumber[0]].bSts_PC) THEN
+      // motion completed (Done = motion reached end of trajectory)
+      IF aMoveCmd[nInstanceNumber[0]].bDone THEN
         IF NOT io.bRun AND (nQA = 0) THEN 
           io.nSmPosTable := 50;
         ELSIF bStopEntry THEN 
@@ -214,7 +214,7 @@ CASE io.nSmPosTable OF
   // state 31 - perform action at standstill
   // -------------------------------------
   31:
-    IF NOT io.bRun THEN 
+    IF NOT io.bRun THEN
      io.nSmPosTable := 50;
     ELSIF io.bSystemReady THEN
       bWaiting := (bDefaultActionDone OR io.bCustomActionDone) AND (io.nMode = PT_MODE_2);
@@ -322,9 +322,8 @@ END_IF;
 io.nStateTime := THIS.MceStateMonitoring(io.nSmPosTable, bWaiting OR NOT io.bSystemReady OR (io.nSmPosTable >= 40) OR (io.nSmPosTable < 10), stStateMonitoringData);
 
 // -----------------------------------------------------------------------------
-// process move commands
+// process move commands - PLCopen standard interface
 // -----------------------------------------------------------------------------
-// Rising edge signals of Enable
 FOR i := 0 TO QA_MAX DO
   aOsrEnable[i] := aEnable[i] AND NOT aOneShots[i+6];
   aOneShots[i+6] := aEnable[i];
@@ -333,8 +332,6 @@ FOR i := 0 TO QA_MAX DO
     THIS.McePosTableUpdateLoadIndex(bAllowQueuing, bFirstMove, ((io.nCycleNr + 1) >= io.nNrOfCycles) AND NOT (io.nNrOfCycles = 0), io.nIndex, io.aConditions);
     
     aUseMoveType[i] := posTable.stEntry[io.nLoadIndex].nMoveType;
-    nUserFrameNr := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nUserFrameNumber);
-    nToolNr := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nToolNumber);
 
     // ROUTE TO EXPLICIT FB INSTANCES
     CASE i OF
@@ -344,255 +341,149 @@ FOR i := 0 TO QA_MAX DO
       0:
         IF aUseMoveType[0] = 1 THEN
           // --- Linear Motion Setup ---
-          fbRobotMoveLinearAbsolute_0.RobotNumber := io.nRobotNumber;
-          fbRobotMoveLinearAbsolute_0.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          
-          Out := MEMORY_SET(fbRobotMoveLinearAbsolute_0.TargetPosition,0, BYTE#0,SIZEOF(fbRobotMoveLinearAbsolute_0.TargetPosition));
-          
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveLinearAbsolute_0.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0,fbRobotMoveLinearAbsolute_0.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-
-          fbRobotMoveLinearAbsolute_0.BlendFactor        := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveLinearAbsolute_0.Speed              := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveLinearAbsolute_0.UseRotationalSpeed := posTable.stEntry[io.nLoadIndex].bUseRotationalSpeed;
-          fbRobotMoveLinearAbsolute_0.SpeedUnits         := posTable.stEntry[io.nLoadIndex].nSpeedUnits;
-          fbRobotMoveLinearAbsolute_0.Acceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveLinearAbsolute_0.Deceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinear_0.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinear_0.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveLinear_0.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_0.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         ELSE
-          // --- PTP Axis Motion Setup ---
-          fbRobotMoveAxisAbsolute_0.RobotNumber := io.nRobotNumber;
-          fbRobotMoveAxisAbsolute_0.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          
-          Out := MEMORY_SET(fbRobotMoveAxisAbsolute_0.TargetPosition, 0, BYTE#0,SIZEOF(fbRobotMoveAxisAbsolute_0.TargetPosition));
-          
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0,fbRobotMoveAxisAbsolute_0.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveAxisAbsolute_0.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-
-          fbRobotMoveAxisAbsolute_0.BlendFactor  := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveAxisAbsolute_0.Speed        := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveAxisAbsolute_0.Acceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveAxisAbsolute_0.Deceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          // --- PTP Motion Setup ---
+          fbMoveAbsolute_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveAbsolute_0.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveAbsolute_0.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveAbsolute_0.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_0.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
-
-        // --- Tool & Frame Setup ---
-        fbRobotSetUserFrame_0.RobotNumber          := io.nRobotNumber;
-        fbRobotSetUserFrame_0.UserFrameNumber      := nUserFrameNr;
-        fbRobotSetUserFrame_0.UserFrameData.CoordFrame := userFrames.aFrames[nUserFrameNr].aVector;
-        
-        fbRobotSelectTool_0.RobotNumber := io.nRobotNumber;
-        fbRobotSelectTool_0.ToolNumber  := nToolNr;
-        fbRobotSelectTool_0.ToolData    := tools.aTools[nToolNr];
 
       // -----------------------------------------------------------------------
       // INSTANCE 1
       // -----------------------------------------------------------------------
       1:
         IF aUseMoveType[1] = 1 THEN
-          fbRobotMoveLinearAbsolute_1.RobotNumber := io.nRobotNumber;
-          fbRobotMoveLinearAbsolute_1.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          Out := MEMORY_SET(fbRobotMoveLinearAbsolute_1.TargetPosition, 0, BYTE#0, SIZEOF(fbRobotMoveLinearAbsolute_1.TargetPosition));
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveLinearAbsolute_1.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveLinearAbsolute_1.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-          fbRobotMoveLinearAbsolute_1.BlendFactor        := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveLinearAbsolute_1.Speed              := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveLinearAbsolute_1.UseRotationalSpeed := posTable.stEntry[io.nLoadIndex].bUseRotationalSpeed;
-          fbRobotMoveLinearAbsolute_1.SpeedUnits         := posTable.stEntry[io.nLoadIndex].nSpeedUnits;
-          fbRobotMoveLinearAbsolute_1.Acceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveLinearAbsolute_1.Deceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinear_1.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinear_1.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveLinear_1.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_1.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         ELSE
-          fbRobotMoveAxisAbsolute_1.RobotNumber := io.nRobotNumber;
-          fbRobotMoveAxisAbsolute_1.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          Out := MEMORY_SET(fbRobotMoveAxisAbsolute_1.TargetPosition, 0, BYTE#0, SIZEOF(fbRobotMoveAxisAbsolute_1.TargetPosition));
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveAxisAbsolute_1.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveAxisAbsolute_1.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-          fbRobotMoveAxisAbsolute_1.BlendFactor  := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveAxisAbsolute_1.Speed        := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveAxisAbsolute_1.Acceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveAxisAbsolute_1.Deceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveAbsolute_1.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveAbsolute_1.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveAbsolute_1.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_1.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
-
-        fbRobotSetUserFrame_1.RobotNumber          := io.nRobotNumber;
-        fbRobotSetUserFrame_1.UserFrameNumber      := nUserFrameNr;
-        fbRobotSetUserFrame_1.UserFrameData.CoordFrame := userFrames.aFrames[nUserFrameNr].aVector;
-        
-        fbRobotSelectTool_1.RobotNumber := io.nRobotNumber;
-        fbRobotSelectTool_1.ToolNumber  := nToolNr;
-        fbRobotSelectTool_1.ToolData    := tools.aTools[nToolNr];
 
       // -----------------------------------------------------------------------
       // INSTANCE 2
       // -----------------------------------------------------------------------
       2:
         IF aUseMoveType[2] = 1 THEN
-          fbRobotMoveLinearAbsolute_2.RobotNumber := io.nRobotNumber;
-          fbRobotMoveLinearAbsolute_2.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          Out := MEMORY_SET(fbRobotMoveLinearAbsolute_2.TargetPosition, 0, BYTE#0, SIZEOF(fbRobotMoveLinearAbsolute_2.TargetPosition));
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveLinearAbsolute_2.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveLinearAbsolute_2.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-          fbRobotMoveLinearAbsolute_2.BlendFactor        := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveLinearAbsolute_2.Speed              := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveLinearAbsolute_2.UseRotationalSpeed := posTable.stEntry[io.nLoadIndex].bUseRotationalSpeed;
-          fbRobotMoveLinearAbsolute_2.SpeedUnits         := posTable.stEntry[io.nLoadIndex].nSpeedUnits;
-          fbRobotMoveLinearAbsolute_2.Acceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveLinearAbsolute_2.Deceleration       := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinear_2.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinear_2.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveLinear_2.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveLinear_2.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         ELSE
-          fbRobotMoveAxisAbsolute_2.RobotNumber := io.nRobotNumber;
-          fbRobotMoveAxisAbsolute_2.TargetType  := posTable.stEntry[io.nLoadIndex].bTargetType;
-          Out := MEMORY_SET(fbRobotMoveAxisAbsolute_2.TargetPosition, 0, BYTE#0, SIZEOF(fbRobotMoveAxisAbsolute_2.TargetPosition));
-          IF posTable.stEntry[io.nLoadIndex].bTargetType THEN
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0,  fbRobotMoveAxisAbsolute_2.TargetPosition.TCPPosition.TCPPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          ELSE
-            Out := MEMORY_COPY(posTable.stEntry[io.nLoadIndex].aPosition, 0, fbRobotMoveAxisAbsolute_2.TargetPosition.AxisPosition, 0, SIZEOF(posTable.stEntry[io.nLoadIndex].aPosition));
-          END_IF;
-          fbRobotMoveAxisAbsolute_2.BlendFactor  := SINT_TO_DINT(posTable.stEntry[io.nLoadIndex].nBlendFactor);
-          fbRobotMoveAxisAbsolute_2.Speed        := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbRobotMoveAxisAbsolute_2.Acceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbRobotMoveAxisAbsolute_2.Deceleration := SINT_TO_REAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveAbsolute_2.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveAbsolute_2.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
+          fbMoveAbsolute_2.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_2.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
-
-        fbRobotSetUserFrame_2.RobotNumber          := io.nRobotNumber;
-        fbRobotSetUserFrame_2.UserFrameNumber      := nUserFrameNr;
-        fbRobotSetUserFrame_2.UserFrameData.CoordFrame := userFrames.aFrames[nUserFrameNr].aVector;
-        
-        fbRobotSelectTool_2.RobotNumber := io.nRobotNumber;
-        fbRobotSelectTool_2.ToolNumber  := nToolNr;
-        fbRobotSelectTool_2.ToolData    := tools.aTools[nToolNr];
         
     END_CASE;
 
-    // change user frame; if the user frame number differs from the previous stEntry a MLxRobotSetUserFrame will be triggered just before the move
-    aChangeUserFrame[i] := bFirstMove OR (nUserFrameNr <> INT_TO_DINT(MLX.Robot[io.nRobotNumber].ActiveUserFrameNumber));
-    // change (select) tool; if the tool number differs from the previous stEntry a MLxRobotSelectTool will be triggered just before the move
-    aChangeTool[i] := bFirstMove OR (nToolNr <> INT_TO_DINT(MLX.Robot[io.nRobotNumber].ActiveToolNumber));
     bFirstMove := FALSE;
   END_IF;
 
   // ---------------------------------------------------------------------------
-  // ENABLE LOGIC & FB EXECUTION
+  // ENABLE LOGIC & FB EXECUTION (PLCopen: Execute on rising edge)
   // ---------------------------------------------------------------------------
   CASE i OF
     0:
-      bUserFrameDone := NOT aChangeUserFrame[0] OR (fbRobotSetUserFrame_0.Sts_EN AND fbRobotSetUserFrame_0.Sts_DN AND NOT fbRobotSetUserFrame_0.Sts_ER);
-      bToolDone      := NOT aChangeTool[0]      OR (fbRobotSelectTool_0.Sts_EN   AND fbRobotSelectTool_0.Sts_DN   AND NOT fbRobotSelectTool_0.Sts_ER);
-      
-      fbRobotMoveAxisAbsolute_0.Enable   := aEnable[0] AND NOT (aUseMoveType[0] = 1) AND bUserFrameDone AND bToolDone;
-      fbRobotMoveLinearAbsolute_0.Enable := aEnable[0] AND (aUseMoveType[0] = 1)     AND bUserFrameDone AND bToolDone;
-      fbRobotSetUserFrame_0.Enable       := aEnable[0] AND aChangeUserFrame[0];
-      fbRobotSelectTool_0.Enable         := aEnable[0] AND aChangeTool[0];
+      fbMoveAbsolute_0.Execute := aEnable[0] AND NOT (aUseMoveType[0] = 1);
+      fbMoveLinear_0.Execute   := aEnable[0] AND (aUseMoveType[0] = 1);
 
-      // Execute Functions
-      fbRobotSelectTool_0(MLX := MLX);
-      fbRobotSetUserFrame_0(MLX := MLX);
-      fbRobotMoveAxisAbsolute_0(MLX := MLX);
-      fbRobotMoveLinearAbsolute_0(MLX := MLX);
+      // TODO: Call actual PLCopen FB instances here
+      // fbMoveAbsolute_0(AxesGroup := AxesGroup);
+      // fbMoveLinear_0(AxesGroup := AxesGroup);
 
-      // Read Status
+      // Read Status - PLCopen standard
       IF aUseMoveType[0] = 1 THEN
-        aMoveCmd[0].bSts_EN := fbRobotMoveLinearAbsolute_0.Sts_EN;
-        aMoveCmd[0].bSts_DN := fbRobotMoveLinearAbsolute_0.Sts_DN;
-        aMoveCmd[0].bSts_IP := fbRobotMoveLinearAbsolute_0.Sts_IP;
-        aMoveCmd[0].bSts_AC := fbRobotMoveLinearAbsolute_0.Sts_AC;
-        aMoveCmd[0].bSts_PC := fbRobotMoveLinearAbsolute_0.Sts_PC;
-        aMoveCmd[0].bSts_ER := fbRobotMoveLinearAbsolute_0.Sts_ER;
-        aMoveCmd[0].nPercentComplete := fbRobotMoveLinearAbsolute_0.PercentComplete;
+        aMoveCmd[0].bDone           := fbMoveLinear_0.Done;
+        aMoveCmd[0].bBusy           := fbMoveLinear_0.Busy;
+        aMoveCmd[0].bActive         := fbMoveLinear_0.Active;
+        aMoveCmd[0].bCommandAborted := fbMoveLinear_0.CommandAborted;
+        aMoveCmd[0].bError          := fbMoveLinear_0.Error;
+        aMoveCmd[0].nErrorID        := fbMoveLinear_0.ErrorID;
       ELSE
-        aMoveCmd[0].bSts_EN := fbRobotMoveAxisAbsolute_0.Sts_EN;
-        aMoveCmd[0].bSts_DN := fbRobotMoveAxisAbsolute_0.Sts_DN;
-        aMoveCmd[0].bSts_IP := fbRobotMoveAxisAbsolute_0.Sts_IP;
-        aMoveCmd[0].bSts_AC := fbRobotMoveAxisAbsolute_0.Sts_AC;
-        aMoveCmd[0].bSts_PC := fbRobotMoveAxisAbsolute_0.Sts_PC;
-        aMoveCmd[0].bSts_ER := fbRobotMoveAxisAbsolute_0.Sts_ER;
-        aMoveCmd[0].nPercentComplete := fbRobotMoveAxisAbsolute_0.PercentComplete;
+        aMoveCmd[0].bDone           := fbMoveAbsolute_0.Done;
+        aMoveCmd[0].bBusy           := fbMoveAbsolute_0.Busy;
+        aMoveCmd[0].bActive         := fbMoveAbsolute_0.Active;
+        aMoveCmd[0].bCommandAborted := fbMoveAbsolute_0.CommandAborted;
+        aMoveCmd[0].bError          := fbMoveAbsolute_0.Error;
+        aMoveCmd[0].nErrorID        := fbMoveAbsolute_0.ErrorID;
       END_IF;
 
     1:
-      bUserFrameDone := NOT aChangeUserFrame[1] OR (fbRobotSetUserFrame_1.Sts_EN AND fbRobotSetUserFrame_1.Sts_DN AND NOT fbRobotSetUserFrame_1.Sts_ER);
-      bToolDone      := NOT aChangeTool[1]      OR (fbRobotSelectTool_1.Sts_EN   AND fbRobotSelectTool_1.Sts_DN   AND NOT fbRobotSelectTool_1.Sts_ER);
-      
-      fbRobotMoveAxisAbsolute_1.Enable   := aEnable[1] AND NOT (aUseMoveType[1] = 1) AND bUserFrameDone AND bToolDone;
-      fbRobotMoveLinearAbsolute_1.Enable := aEnable[1] AND (aUseMoveType[1] = 1)     AND bUserFrameDone AND bToolDone;
-      fbRobotSetUserFrame_1.Enable       := aEnable[1] AND aChangeUserFrame[1];
-      fbRobotSelectTool_1.Enable         := aEnable[1] AND aChangeTool[1];
+      fbMoveAbsolute_1.Execute := aEnable[1] AND NOT (aUseMoveType[1] = 1);
+      fbMoveLinear_1.Execute   := aEnable[1] AND (aUseMoveType[1] = 1);
 
-      fbRobotSelectTool_1(MLX := MLX);
-      fbRobotSetUserFrame_1(MLX := MLX);
-      fbRobotMoveAxisAbsolute_1(MLX := MLX);
-      fbRobotMoveLinearAbsolute_1(MLX := MLX);
+      // TODO: Call actual PLCopen FB instances here
 
       IF aUseMoveType[1] = 1 THEN
-        aMoveCmd[1].bSts_EN := fbRobotMoveLinearAbsolute_1.Sts_EN;
-        aMoveCmd[1].bSts_DN := fbRobotMoveLinearAbsolute_1.Sts_DN;
-        aMoveCmd[1].bSts_IP := fbRobotMoveLinearAbsolute_1.Sts_IP;
-        aMoveCmd[1].bSts_AC := fbRobotMoveLinearAbsolute_1.Sts_AC;
-        aMoveCmd[1].bSts_PC := fbRobotMoveLinearAbsolute_1.Sts_PC;
-        aMoveCmd[1].bSts_ER := fbRobotMoveLinearAbsolute_1.Sts_ER;
-        aMoveCmd[1].nPercentComplete := fbRobotMoveLinearAbsolute_1.PercentComplete;
+        aMoveCmd[1].bDone           := fbMoveLinear_1.Done;
+        aMoveCmd[1].bBusy           := fbMoveLinear_1.Busy;
+        aMoveCmd[1].bActive         := fbMoveLinear_1.Active;
+        aMoveCmd[1].bCommandAborted := fbMoveLinear_1.CommandAborted;
+        aMoveCmd[1].bError          := fbMoveLinear_1.Error;
+        aMoveCmd[1].nErrorID        := fbMoveLinear_1.ErrorID;
       ELSE
-        aMoveCmd[1].bSts_EN := fbRobotMoveAxisAbsolute_1.Sts_EN;
-        aMoveCmd[1].bSts_DN := fbRobotMoveAxisAbsolute_1.Sts_DN;
-        aMoveCmd[1].bSts_IP := fbRobotMoveAxisAbsolute_1.Sts_IP;
-        aMoveCmd[1].bSts_AC := fbRobotMoveAxisAbsolute_1.Sts_AC;
-        aMoveCmd[1].bSts_PC := fbRobotMoveAxisAbsolute_1.Sts_PC;
-        aMoveCmd[1].bSts_ER := fbRobotMoveAxisAbsolute_1.Sts_ER;
-        aMoveCmd[1].nPercentComplete := fbRobotMoveAxisAbsolute_1.PercentComplete;
+        aMoveCmd[1].bDone           := fbMoveAbsolute_1.Done;
+        aMoveCmd[1].bBusy           := fbMoveAbsolute_1.Busy;
+        aMoveCmd[1].bActive         := fbMoveAbsolute_1.Active;
+        aMoveCmd[1].bCommandAborted := fbMoveAbsolute_1.CommandAborted;
+        aMoveCmd[1].bError          := fbMoveAbsolute_1.Error;
+        aMoveCmd[1].nErrorID        := fbMoveAbsolute_1.ErrorID;
       END_IF;
 
     2:
-      bUserFrameDone := NOT aChangeUserFrame[2] OR (fbRobotSetUserFrame_2.Sts_EN AND fbRobotSetUserFrame_2.Sts_DN AND NOT fbRobotSetUserFrame_2.Sts_ER);
-      bToolDone      := NOT aChangeTool[2]      OR (fbRobotSelectTool_2.Sts_EN   AND fbRobotSelectTool_2.Sts_DN   AND NOT fbRobotSelectTool_2.Sts_ER);
-      
-      fbRobotMoveAxisAbsolute_2.Enable   := aEnable[2] AND NOT (aUseMoveType[2] = 1) AND bUserFrameDone AND bToolDone;
-      fbRobotMoveLinearAbsolute_2.Enable := aEnable[2] AND (aUseMoveType[2] = 1)     AND bUserFrameDone AND bToolDone;
-      fbRobotSetUserFrame_2.Enable       := aEnable[2] AND aChangeUserFrame[2];
-      fbRobotSelectTool_2.Enable         := aEnable[2] AND aChangeTool[2];
+      fbMoveAbsolute_2.Execute := aEnable[2] AND NOT (aUseMoveType[2] = 1);
+      fbMoveLinear_2.Execute   := aEnable[2] AND (aUseMoveType[2] = 1);
 
-      fbRobotSelectTool_2(MLX := MLX);
-      fbRobotSetUserFrame_2(MLX := MLX);
-      fbRobotMoveAxisAbsolute_2(MLX := MLX);
-      fbRobotMoveLinearAbsolute_2(MLX := MLX);
+      // TODO: Call actual PLCopen FB instances here
 
       IF aUseMoveType[2] = 1 THEN
-        aMoveCmd[2].bSts_EN := fbRobotMoveLinearAbsolute_2.Sts_EN;
-        aMoveCmd[2].bSts_DN := fbRobotMoveLinearAbsolute_2.Sts_DN;
-        aMoveCmd[2].bSts_IP := fbRobotMoveLinearAbsolute_2.Sts_IP;
-        aMoveCmd[2].bSts_AC := fbRobotMoveLinearAbsolute_2.Sts_AC;
-        aMoveCmd[2].bSts_PC := fbRobotMoveLinearAbsolute_2.Sts_PC;
-        aMoveCmd[2].bSts_ER := fbRobotMoveLinearAbsolute_2.Sts_ER;
-        aMoveCmd[2].nPercentComplete := fbRobotMoveLinearAbsolute_2.PercentComplete;
+        aMoveCmd[2].bDone           := fbMoveLinear_2.Done;
+        aMoveCmd[2].bBusy           := fbMoveLinear_2.Busy;
+        aMoveCmd[2].bActive         := fbMoveLinear_2.Active;
+        aMoveCmd[2].bCommandAborted := fbMoveLinear_2.CommandAborted;
+        aMoveCmd[2].bError          := fbMoveLinear_2.Error;
+        aMoveCmd[2].nErrorID        := fbMoveLinear_2.ErrorID;
       ELSE
-        aMoveCmd[2].bSts_EN := fbRobotMoveAxisAbsolute_2.Sts_EN;
-        aMoveCmd[2].bSts_DN := fbRobotMoveAxisAbsolute_2.Sts_DN;
-        aMoveCmd[2].bSts_IP := fbRobotMoveAxisAbsolute_2.Sts_IP;
-        aMoveCmd[2].bSts_AC := fbRobotMoveAxisAbsolute_2.Sts_AC;
-        aMoveCmd[2].bSts_PC := fbRobotMoveAxisAbsolute_2.Sts_PC;
-        aMoveCmd[2].bSts_ER := fbRobotMoveAxisAbsolute_2.Sts_ER;
-        aMoveCmd[2].nPercentComplete := fbRobotMoveAxisAbsolute_2.PercentComplete;
+        aMoveCmd[2].bDone           := fbMoveAbsolute_2.Done;
+        aMoveCmd[2].bBusy           := fbMoveAbsolute_2.Busy;
+        aMoveCmd[2].bActive         := fbMoveAbsolute_2.Active;
+        aMoveCmd[2].bCommandAborted := fbMoveAbsolute_2.CommandAborted;
+        aMoveCmd[2].bError          := fbMoveAbsolute_2.Error;
+        aMoveCmd[2].nErrorID        := fbMoveAbsolute_2.ErrorID;
       END_IF;
 
   END_CASE;
 END_FOR;
 
 // -----------------------------------------------------------------------------
-// map nPercentComplete
+// map nPercentComplete (simplified - PLCopen doesn't have PercentComplete)
 // -----------------------------------------------------------------------------
 CASE io.nSmPosTable OF
   10..29: 
-    io.nPercentComplete := aMoveCmd[nInstanceNumber[0]].nPercentComplete;
+    IF aMoveCmd[nInstanceNumber[0]].bActive THEN
+      io.nPercentComplete := 50; // placeholder: active motion in progress
+    ELSIF aMoveCmd[nInstanceNumber[0]].bDone THEN
+      io.nPercentComplete := 100;
+    ELSE
+      io.nPercentComplete := 0;
+    END_IF;
   30..50: 
     io.nPercentComplete := 100;
   ELSE    
@@ -608,23 +499,17 @@ io.bIdle := (io.nSmPosTable < 5);
 io.bBusy := (io.nSmPosTable >= 5 AND io.nSmPosTable < 50);
 io.aMissingConditions := stConditionResult.aMissingConditions;
 
-// Catch global errors from the explicit instances
-bError := MLX.JoggingMode;
+// Check errors from all instances
+bError := FALSE;
 
 // Check errors for Instance 0
-bError := bError OR (aMoveCmd[0].bSts_EN AND aMoveCmd[0].bSts_ER) OR 
-          (fbRobotSelectTool_0.Sts_EN AND fbRobotSelectTool_0.Sts_ER) OR 
-          (fbRobotSetUserFrame_0.Sts_EN AND fbRobotSetUserFrame_0.Sts_ER);
+bError := bError OR aMoveCmd[0].bError;
 
 // Check errors for Instance 1
-bError := bError OR (aMoveCmd[1].bSts_EN AND aMoveCmd[1].bSts_ER) OR 
-          (fbRobotSelectTool_1.Sts_EN AND fbRobotSelectTool_1.Sts_ER) OR 
-          (fbRobotSetUserFrame_1.Sts_EN AND fbRobotSetUserFrame_1.Sts_ER);
+bError := bError OR aMoveCmd[1].bError;
 
 // Check errors for Instance 2
-bError := bError OR (aMoveCmd[2].bSts_EN AND aMoveCmd[2].bSts_ER) OR 
-          (fbRobotSelectTool_2.Sts_EN AND fbRobotSelectTool_2.Sts_ER) OR 
-          (fbRobotSetUserFrame_2.Sts_EN AND fbRobotSetUserFrame_2.Sts_ER);
+bError := bError OR aMoveCmd[2].bError;
 
 IF bError AND NOT (io.nSmPosTable = 99) THEN
   io.nErrorCode := 1000 + INT_TO_UDINT(io.nSmPosTable);

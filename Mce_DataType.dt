@@ -2,8 +2,6 @@ VAR CONSTANT
   QA_MAX : INT := 16; (*max Queueing Amount; max number of motions which can be queued*)
   CONDITIONS_UBOUND : SINT := 15;  
   ENTRIES_UBOUND : SINT := 15;
-  USERFRAMES_UBOUND : SINT := 15;
-  TOOLS_UBOUND : SINT := 15;
 END_VAR
 
 TYPE
@@ -13,53 +11,29 @@ TYPE
   BoolQA_Array : ARRAY[0..QA_MAX] OF BOOL;
 END_TYPE
 
-(*status signals of a mapped motion instruction*)
+(*status signals of a motion command - mapped to PLCopen standard*)
 TYPE MceCmdStatus : 
 
 (*
  * -----------------------------------------------------------------------------
  * Name               : MceCmdStatus
- * Version            : 0.1.0
- * Date               : 2024-02-07
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Version            : 1.0.0
+ * Date               : 2026-03-17
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
- * status signals of a mapped motion instruction
+ * Status signals of a motion command, aligned with PLCopen standard
+ * (Done, Busy, Active, CommandAborted, Error)
  * -----------------------------------------------------------------------------
  *)
 
 STRUCT
-  bSts_EN : BOOL; (*Enable bit. This bit will stay high as long as the instruction is enabled.*)
-  bSts_DN : BOOL; (*Done bit. This will turn HIGH when the command has been processed and added to the motion queue. The instruction must stay enabled until this bit is active.*)
-  bSts_IP : BOOL; (*In process bit. This Instruction is actively executing, but another instruction may be commanding the active movement.*)
-  bSts_AC : BOOL; (*Active bit. HIGH if this motion is currently executing.*)
-  bSts_PC : BOOL; (*Process complete bit. HIGH if this motion has reached the end of its commanded trajectory.*)
-  bSts_ER : BOOL; (*Error bit. Indicates an error during instruction execution.*)
-  nPercentComplete : SINT; (*Percentage of motion that is completed*)
-END_STRUCT
-END_TYPE
-
-(*A collection of Tools*)
-TYPE MceToolData : 
-
-(*
- * -----------------------------------------------------------------------------
- * Name               : MceToolData
- * Version            : 0.1.0
- * Date               : 2024-02-09
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
- * 
- * -----------------------------------------------------------------------------
- * A collection of Tools
- * -----------------------------------------------------------------------------
- *)
-
-STRUCT
-  aTools : ARRAY [0..TOOLS_UBOUND] OF MLxAppDataTool; (*A collection of Tools*)
+  bDone           : BOOL; (*motion completed successfully*)
+  bBusy           : BOOL; (*FB is processing a command*)
+  bActive         : BOOL; (*this motion is the currently active motion*)
+  bCommandAborted : BOOL; (*motion was aborted by another command*)
+  bError          : BOOL; (*error occurred during execution*)
+  nErrorID        : UDINT; (*error identification code*)
 END_STRUCT
 END_TYPE
 
@@ -69,26 +43,23 @@ TYPE McePosTableIO :
 (*
  * -----------------------------------------------------------------------------
  * Name               : McePosTableIO
- * Version            : 0.3.1
- * Date               : 2025-06-03
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Version            : 1.0.0
+ * Date               : 2026-03-17
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
- * IO data for the McePosTable function
+ * IO data for the McePosTable function - PLCopen compatible
  * -----------------------------------------------------------------------------
  *)
  
 STRUCT
-  nRobotNumber : USINT := 0; (*input: motion device targeted by this function [0 to 3]*)
   bSystemReady : BOOL := 0; (*input: system ready for running motion commands*)
   bRun : BOOL; (*input: run PosTable. Reset PosTable when False*)
   bStep : BOOL; (*input: trigger next step*)
   bRecalcQA : BOOL; (*input: recalculate QA (queueing amount)*)
   nAbortingMode : SINT := 0; (*input: select aborting mode [0=controlled stop, 1=immediate reset of PosTable]*)
   nMode : SINT := 0; (*input: PosTable operation mode [0=with blending, 1=not blending, 2=single motion (wait for step after each motion)]*)
-  nNrOfCycles : INT := 1; (*input: for setting the number of cycles for the PosTable [0=repeat forever, 1=single cycle, >1=n cycles]*)
+  nNrOfCycles : INT := 1; (*input: number of cycles [0=repeat forever, 1=single cycle, >1=n cycles]*)
   aConditions : ARRAY [0..CONDITIONS_UBOUND] OF BOOL; (*input: conditions state*)
   bCustomActionDone : BOOL; (*input: custom action at standstill done*)
   bActionStart : BOOL; (*output: start action at standstill*)
@@ -109,37 +80,31 @@ STRUCT
 END_STRUCT
 END_TYPE
 
-(*Datatype for a PosTable entry*)
+(*Datatype for a PosTable entry - PLCopen aligned*)
 TYPE McePosTableEntry : 
 
 (*
  * -----------------------------------------------------------------------------
  * Name               : McePosTableEntry
- * Version            : 0.3.0
- * Date               : 2024-09-30
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Version            : 1.0.0
+ * Date               : 2026-03-17
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
- * Datatype for a PosTable entry
+ * Datatype for a PosTable entry - simplified for PLCopen standard
+ * Tool and UserFrame management is handled externally.
  * -----------------------------------------------------------------------------
  *)
 
 STRUCT
   bSkipEntry : BOOL; (*1=skip this entry*)
   bLastEntry : BOOL; (*1=mark this as the last entry (ignoring rest of the PosTable)*)
-  bTargetType : BOOL; (*0=axis position, 1=TCP position*)
-  bUseRotationalSpeed : BOOL; (*0=as linear speed, 1=as rotational speed*)
-  aPosition : ARRAY [0..5] OF REAL; (*axis positions [deg] for TargetType=0 / TCP position (X, Y, Z, Rx, Ry, Rz) for TargetType=1*)
-  fSpeed : REAL; (*[% from max] for SpeedUnits=0 / [absolute units (mm/sec and deg/sec)] for SpeedUnits=1 / [50-100% from VMAX] for SpeedUnits=2 (n/a for DX200)*)
+  aPosition : ARRAY [0..5] OF LREAL; (*target position: axis positions [deg] for MoveType=0 / TCP position (X, Y, Z, Rx, Ry, Rz) for MoveType=1*)
+  fSpeed : LREAL; (*target velocity*)
   nMoveType : SINT; (*0=Point-to-Point move, 1=linear move*)
-  nSpeedUnits : SINT; (*0=as percentage from max, 1=as position units/sec, 2=as percentage from VMAX (n/a for DX200)*)
   nAcc : SINT; (*acceleration [20 to 100%]*)
   nDec : SINT; (*deceleration [20 to 100%]*)
-  nBlendFactor : SINT; (*factor for blending motions [-1 to 8] (-1=speed dependent, 0=exact position, 1-8=fine to coarse)*)
-  nUserFrameNumber : SINT; (*user frame number for this motion*)
-  nToolNumber : SINT; (*tool number for this motion (uses SelectTool; requires tools to be configured into robot e.g. with SetToolProperties or by pendant)*)
+  nBlendFactor : SINT; (*buffer/blending mode [-1 to 8] (-1=speed dependent, 0=exact position, 1-8=fine to coarse)*)
   nActionID : SINT; (*action with standstill; 0=none, 1=wait one PLC scan, 2=wait for step, >=20=custom actions*)
   aStartCondition : ARRAY [0..CONDITIONS_UBOUND] OF BOOL; (*conditions to continue the trajectory*)
 END_STRUCT
@@ -153,9 +118,7 @@ TYPE McePosTableData :
  * Name               : McePosTableData
  * Version            : 0.1.0
  * Date               : 2024-02-06
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
  * Data type for defining the size of the PosTable
@@ -167,50 +130,6 @@ STRUCT
 END_STRUCT
 END_TYPE
 
-(*compact data type for storing a user frame definition*)
-TYPE MceUserFrameData : 
-
-(*
- * -----------------------------------------------------------------------------
- * Name               : MceUserFrameData
- * Version            : 0.1.0
- * Date               : 2022-03-11
- * Author             : deGroot
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
- * 
- * -----------------------------------------------------------------------------
- * compact data type for storing a user frame definition
- * -----------------------------------------------------------------------------
- *)
-
-STRUCT
-  aVector : ARRAY [0..5] OF REAL; (*user frame definition as vector from world frame to user frame [X/Y/Z/Rx/Ry/Rz]*)
-END_STRUCT
-END_TYPE
-
-(*collection of user frames (as vectors) for one robot*)
-TYPE MceUserFrames : 
-
-(*
- * -----------------------------------------------------------------------------
- * Name               : MceUserFrames
- * Version            : 0.1.0
- * Date               : 2022-03-11
- * Author             : Rioual
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
- * 
- * -----------------------------------------------------------------------------
- * collection of user frames (as vectors) for one robot
- * -----------------------------------------------------------------------------
- *)
-
-STRUCT
-  aFrames : ARRAY [0..USERFRAMES_UBOUND] OF MceUserFrameData; (*user frames for this robot*)
-END_STRUCT
-END_TYPE
-
 (*data for state machine monitoring*)
 TYPE MceStateMonitoringData : 
 
@@ -219,9 +138,7 @@ TYPE MceStateMonitoringData :
  * Name               : MceStateMonitoringData
  * Version            : 0.2.0
  * Date               : 2026-02-18
- * Author             : deGroot
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
  * data for state machine monitoring
@@ -247,9 +164,7 @@ TYPE McePosTableConditions :
  * Name               : McePosTableConditions
  * Version            : 0.1.0
  * Date               : 2024-03-28
- * Author             : deGroot
- * Family             : YaskawaMce
- * Organisation       : github.com/YaskawaEurope/mlx-examples
+ * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
  * Datatype for checking the start conditions of a PosTable entry
