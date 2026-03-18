@@ -3,12 +3,11 @@
  * Name               : McePosTable
  * Version            : 1.0.0
  * Date               : 2026-03-17
- * Author             : refactored for PLCopen standard
+ * Author             : FraSar
  * Family             : McePosTable
  * 
  * -----------------------------------------------------------------------------
- * Perform a trajectory stored in a PosTable (PLCopen MC_MovePath equivalent)
- * Uses standard PLCopen motion interfaces (Execute/Done/Busy/Active/Error)
+ * Performed a trajectory stored in a PosTable
  * -----------------------------------------------------------------------------
  *)
  
@@ -214,7 +213,7 @@ CASE io.nSmPosTable OF
   // state 31 - perform action at standstill
   // -------------------------------------
   31:
-    IF NOT io.bRun THEN
+    IF NOT io.bRun THEN 
      io.nSmPosTable := 50;
     ELSIF io.bSystemReady THEN
       bWaiting := (bDefaultActionDone OR io.bCustomActionDone) AND (io.nMode = PT_MODE_2);
@@ -322,7 +321,7 @@ END_IF;
 io.nStateTime := THIS.MceStateMonitoring(io.nSmPosTable, bWaiting OR NOT io.bSystemReady OR (io.nSmPosTable >= 40) OR (io.nSmPosTable < 10), stStateMonitoringData);
 
 // -----------------------------------------------------------------------------
-// process move commands - PLCopen standard interface
+// process move commands
 // -----------------------------------------------------------------------------
 FOR i := 0 TO QA_MAX DO
   aOsrEnable[i] := aEnable[i] AND NOT aOneShots[i+6];
@@ -341,17 +340,21 @@ FOR i := 0 TO QA_MAX DO
       0:
         IF aUseMoveType[0] = 1 THEN
           // --- Linear Motion Setup ---
-          fbMoveLinear_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
-          fbMoveLinear_0.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveLinear_0.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveLinear_0.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
-          fbMoveLinear_0.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinearAbsolute_0.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinearAbsolute_0.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveLinearAbsolute_0.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
+          fbMoveLinearAbsolute_0.MoveOptions  := posTable.stEntry[io.nLoadIndex].stMoveOptions;
+          fbMoveLinearAbsolute_0.CoordSystem  := MC_CoordinateSystem#MCS;
+          fbMoveLinearAbsolute_0.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_0.TransitionMode := posTable.stEntry[io.nLoadIndex].nTransitionMode;
+          fbMoveLinearAbsolute_0.TransitionParameter := posTable.stEntry[io.nLoadIndex].aTransitionParam;
         ELSE
           // --- PTP Motion Setup ---
-          fbMoveAbsolute_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+//          fbMoveAbsolute_0.Position     := posTable.stEntry[io.nLoadIndex].aPosition; // TODO
           fbMoveAbsolute_0.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveAbsolute_0.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveAbsolute_0.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_0.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveAbsolute_0.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
           fbMoveAbsolute_0.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
 
@@ -360,16 +363,20 @@ FOR i := 0 TO QA_MAX DO
       // -----------------------------------------------------------------------
       1:
         IF aUseMoveType[1] = 1 THEN
-          fbMoveLinear_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
-          fbMoveLinear_1.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveLinear_1.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveLinear_1.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
-          fbMoveLinear_1.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinearAbsolute_1.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinearAbsolute_1.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveLinearAbsolute_1.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
+          fbMoveLinearAbsolute_1.MoveOptions  := posTable.stEntry[io.nLoadIndex].stMoveOptions;
+          fbMoveLinearAbsolute_1.CoordSystem  := MC_CoordinateSystem#MCS;          
+          fbMoveLinearAbsolute_1.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_1.TransitionMode := posTable.stEntry[io.nLoadIndex].nTransitionMode;
+          fbMoveLinearAbsolute_1.TransitionParameter := posTable.stEntry[io.nLoadIndex].aTransitionParam;   
         ELSE
-          fbMoveAbsolute_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+//          fbMoveAbsolute_1.Position     := posTable.stEntry[io.nLoadIndex].aPosition; // TODO
           fbMoveAbsolute_1.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveAbsolute_1.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveAbsolute_1.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_1.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveAbsolute_1.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
           fbMoveAbsolute_1.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
 
@@ -378,16 +385,20 @@ FOR i := 0 TO QA_MAX DO
       // -----------------------------------------------------------------------
       2:
         IF aUseMoveType[2] = 1 THEN
-          fbMoveLinear_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
-          fbMoveLinear_2.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveLinear_2.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveLinear_2.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
-          fbMoveLinear_2.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+          fbMoveLinearAbsolute_2.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
+          fbMoveLinearAbsolute_2.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveLinearAbsolute_2.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
+          fbMoveLinearAbsolute_2.MoveOptions  := posTable.stEntry[io.nLoadIndex].stMoveOptions;
+          fbMoveLinearAbsolute_2.CoordSystem  := MC_CoordinateSystem#MCS;                    
+          fbMoveLinearAbsolute_2.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
+          fbMoveLinearAbsolute_2.TransitionMode := posTable.stEntry[io.nLoadIndex].nTransitionMode;
+          fbMoveLinearAbsolute_2.TransitionParameter := posTable.stEntry[io.nLoadIndex].aTransitionParam;;
         ELSE
-          fbMoveAbsolute_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition;
+//          fbMoveAbsolute_2.Position     := posTable.stEntry[io.nLoadIndex].aPosition; // TODO
           fbMoveAbsolute_2.Velocity     := posTable.stEntry[io.nLoadIndex].fSpeed;
-          fbMoveAbsolute_2.Acceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nAcc);
-          fbMoveAbsolute_2.Deceleration := SINT_TO_LREAL(posTable.stEntry[io.nLoadIndex].nDec);
+          fbMoveAbsolute_2.Acceleration := posTable.stEntry[io.nLoadIndex].nAcc;
+          fbMoveAbsolute_2.Deceleration := posTable.stEntry[io.nLoadIndex].nDec;
           fbMoveAbsolute_2.BufferMode   := posTable.stEntry[io.nLoadIndex].nBlendFactor;
         END_IF;
         
@@ -402,20 +413,22 @@ FOR i := 0 TO QA_MAX DO
   CASE i OF
     0:
       fbMoveAbsolute_0.Execute := aEnable[0] AND NOT (aUseMoveType[0] = 1);
-      fbMoveLinear_0.Execute   := aEnable[0] AND (aUseMoveType[0] = 1);
+      fbMoveLinearAbsolute_0.Execute   := aEnable[0] AND (aUseMoveType[0] = 1);
 
       // TODO: Call actual PLCopen FB instances here
       // fbMoveAbsolute_0(AxesGroup := AxesGroup);
       // fbMoveLinear_0(AxesGroup := AxesGroup);
+      
+      fbMoveLinearAbsolute_0(AxesGroup := AxesGroup);
 
       // Read Status - PLCopen standard
       IF aUseMoveType[0] = 1 THEN
-        aMoveCmd[0].bDone           := fbMoveLinear_0.Done;
-        aMoveCmd[0].bBusy           := fbMoveLinear_0.Busy;
-        aMoveCmd[0].bActive         := fbMoveLinear_0.Active;
-        aMoveCmd[0].bCommandAborted := fbMoveLinear_0.CommandAborted;
-        aMoveCmd[0].bError          := fbMoveLinear_0.Error;
-        aMoveCmd[0].nErrorID        := fbMoveLinear_0.ErrorID;
+        aMoveCmd[0].bDone           := fbMoveLinearAbsolute_0.Done;
+        aMoveCmd[0].bBusy           := fbMoveLinearAbsolute_0.Busy;
+        aMoveCmd[0].bActive         := fbMoveLinearAbsolute_0.Active;
+        aMoveCmd[0].bCommandAborted := fbMoveLinearAbsolute_0.CommandAborted;
+        aMoveCmd[0].bError          := fbMoveLinearAbsolute_0.Error;
+        aMoveCmd[0].nErrorID        := fbMoveLinearAbsolute_0.ErrorID;
       ELSE
         aMoveCmd[0].bDone           := fbMoveAbsolute_0.Done;
         aMoveCmd[0].bBusy           := fbMoveAbsolute_0.Busy;
@@ -427,17 +440,19 @@ FOR i := 0 TO QA_MAX DO
 
     1:
       fbMoveAbsolute_1.Execute := aEnable[1] AND NOT (aUseMoveType[1] = 1);
-      fbMoveLinear_1.Execute   := aEnable[1] AND (aUseMoveType[1] = 1);
+      fbMoveLinearAbsolute_1.Execute   := aEnable[1] AND (aUseMoveType[1] = 1);
 
       // TODO: Call actual PLCopen FB instances here
 
+      fbMoveLinearAbsolute_1(AxesGroup := AxesGroup);
+      
       IF aUseMoveType[1] = 1 THEN
-        aMoveCmd[1].bDone           := fbMoveLinear_1.Done;
-        aMoveCmd[1].bBusy           := fbMoveLinear_1.Busy;
-        aMoveCmd[1].bActive         := fbMoveLinear_1.Active;
-        aMoveCmd[1].bCommandAborted := fbMoveLinear_1.CommandAborted;
-        aMoveCmd[1].bError          := fbMoveLinear_1.Error;
-        aMoveCmd[1].nErrorID        := fbMoveLinear_1.ErrorID;
+        aMoveCmd[1].bDone           := fbMoveLinearAbsolute_1.Done;
+        aMoveCmd[1].bBusy           := fbMoveLinearAbsolute_1.Busy;
+        aMoveCmd[1].bActive         := fbMoveLinearAbsolute_1.Active;
+        aMoveCmd[1].bCommandAborted := fbMoveLinearAbsolute_1.CommandAborted;
+        aMoveCmd[1].bError          := fbMoveLinearAbsolute_1.Error;
+        aMoveCmd[1].nErrorID        := fbMoveLinearAbsolute_1.ErrorID;
       ELSE
         aMoveCmd[1].bDone           := fbMoveAbsolute_1.Done;
         aMoveCmd[1].bBusy           := fbMoveAbsolute_1.Busy;
@@ -449,17 +464,19 @@ FOR i := 0 TO QA_MAX DO
 
     2:
       fbMoveAbsolute_2.Execute := aEnable[2] AND NOT (aUseMoveType[2] = 1);
-      fbMoveLinear_2.Execute   := aEnable[2] AND (aUseMoveType[2] = 1);
+      fbMoveLinearAbsolute_2.Execute   := aEnable[2] AND (aUseMoveType[2] = 1);
 
       // TODO: Call actual PLCopen FB instances here
 
+      fbMoveLinearAbsolute_2(AxesGroup := AxesGroup);
+      
       IF aUseMoveType[2] = 1 THEN
-        aMoveCmd[2].bDone           := fbMoveLinear_2.Done;
-        aMoveCmd[2].bBusy           := fbMoveLinear_2.Busy;
-        aMoveCmd[2].bActive         := fbMoveLinear_2.Active;
-        aMoveCmd[2].bCommandAborted := fbMoveLinear_2.CommandAborted;
-        aMoveCmd[2].bError          := fbMoveLinear_2.Error;
-        aMoveCmd[2].nErrorID        := fbMoveLinear_2.ErrorID;
+        aMoveCmd[2].bDone           := fbMoveLinearAbsolute_2.Done;
+        aMoveCmd[2].bBusy           := fbMoveLinearAbsolute_2.Busy;
+        aMoveCmd[2].bActive         := fbMoveLinearAbsolute_2.Active;
+        aMoveCmd[2].bCommandAborted := fbMoveLinearAbsolute_2.CommandAborted;
+        aMoveCmd[2].bError          := fbMoveLinearAbsolute_2.Error;
+        aMoveCmd[2].nErrorID        := fbMoveLinearAbsolute_2.ErrorID;
       ELSE
         aMoveCmd[2].bDone           := fbMoveAbsolute_2.Done;
         aMoveCmd[2].bBusy           := fbMoveAbsolute_2.Busy;

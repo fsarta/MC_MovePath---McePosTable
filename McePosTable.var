@@ -27,12 +27,12 @@ VAR
     aEnable : BoolQA_Array; (*Enable flags for the motions*)
     aOsrEnable : BoolQA_Array; (*One-shot rising edge for enables*)
     aOneShots : ARRAY[0..15] OF BOOL; (*General purpose edge detectors*)
-    fbMoveAbsolute_0 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 0*)
-    fbMoveLinear_0 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 0*)
-    fbMoveAbsolute_1 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 1*)
-    fbMoveLinear_1 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 1*)
-    fbMoveAbsolute_2 : MC_MoveAbsolute_Ref; (*PLCopen PtP motion instance 2*)
-    fbMoveLinear_2 : MC_MoveLinearAbsolute_Ref; (*PLCopen linear motion instance 2*)
+    fbMoveAbsolute_0 : MC_MoveAbsolute; (*PLCopen PtP motion instance 0*)
+    fbMoveLinearAbsolute_0 : MC_MoveLinearAbsolute; (*PLCopen linear motion instance 0*)
+    fbMoveAbsolute_1 : MC_MoveAbsolute; (*PLCopen PtP motion instance 1*)
+    fbMoveLinearAbsolute_1 : MC_MoveLinearAbsolute; (*PLCopen linear motion instance 1*)
+    fbMoveAbsolute_2 : MC_MoveAbsolute; (*PLCopen PtP motion instance 2*)
+    fbMoveLinearAbsolute_2 : MC_MoveLinearAbsolute; (*PLCopen linear motion instance 2*)
     stStateMonitoringData : MceStateMonitoringData;
     stConditionResult : McePosTableConditions;
     nQA : INT; (*Allowed Queueing Amount*)
